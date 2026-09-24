@@ -218,6 +218,7 @@ def compute_stats(total_chars, resolved):
 
 PREAMBLE = r"""\documentclass[UTF8,12pt]{ctexart}
 \usepackage[a4paper,margin=2.4cm]{geometry}
+\usepackage{amsmath}
 \usepackage{xcolor}
 \usepackage{longtable}
 \usepackage{booktabs}
@@ -230,6 +231,7 @@ PREAMBLE = r"""\documentclass[UTF8,12pt]{ctexart}
 \newcommand{\flagsevere}[1]{\colorbox{csevere}{#1}}
 \newcommand{\flagmark}[2]{\textsuperscript{\textcolor{#1}{\textbf{[#2]}}}}
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
 \setlength{\parindent}{2em}
 \setlength{\tabcolsep}{4pt}
 \begin{document}
