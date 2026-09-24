@@ -630,6 +630,22 @@ def build_docx(meta_title, blocks, resolved, stats, rate, rate_no_quote,
     doc.save(str(out_path))
 
 
+def detect_missing_packages(log_text):
+    """从编译日志中识别缺失的宏包/文件名（去掉 .sty/.cls 等后缀）。"""
+    found = []
+    for pat in [r"File `([^']+)' not found", r"file '([^']+)' not found",
+                r"\\(?:usepackage|RequirePackage)\{([^}]+)\}"]:
+        for m in re.findall(pat, log_text):
+            name = m.strip()
+            for suf in (".sty", ".cls", ".tex", ".def", ".cfg"):
+                if name.endswith(suf):
+                    name = name[:-len(suf)]
+                    break
+            if name and name not in found:
+                found.append(name)
+    return found
+
+
 # ---------------------------------------------------------------- 主流程
 
 def main():
@@ -642,6 +658,9 @@ def main():
     ap.add_argument("--docx", action="store_true",
                     help="同时输出 Word 版报告(.docx)并自动转换为 PDF"
                          "（本机无 LaTeX 环境时使用）")
+    ap.add_argument("--enable-installer", action="store_true",
+                    help="MiKTeX 缺宏包时允许联网自动安装（等价 xelatex "
+                         "-enable-installer）")
     args = ap.parse_args()
 
     blocks_data = json.loads(Path(args.blocks_json).read_text(
@@ -701,20 +720,29 @@ def main():
 
     if args.compile:
         if shutil.which("xelatex") is None:
-            warn("未找到 xelatex，跳过编译。可手工执行: xelatex %s"
-                 % out_path.name)
+            warn("未找到 xelatex，LaTeX 环境不可用")
+            print("LATEX_STATUS: missing-xelatex")
             sys.exit(0)
+        xargs = ["-interaction=nonstopmode", "-halt-on-error"]
+        if args.enable_installer:
+            xargs.append("-enable-installer")
         rc = subprocess.run(
-            ["xelatex", "-interaction=nonstopmode", "-halt-on-error",
-             out_path.name],
+            ["xelatex"] + xargs + [out_path.name],
             cwd=str(out_path.parent) if str(out_path.parent) else None,
             capture_output=True, text=True)
         pdf = out_path.with_suffix(".pdf")
         if rc.returncode == 0 and pdf.exists():
             print("OK compiled=%s" % pdf)
         else:
-            warn("xelatex 编译失败，请检查 .tex（需要 ctex 宏包）。日志尾部：\n"
-                 + (rc.stdout or "")[-1200:])
+            log = (rc.stdout or "") + (rc.stderr or "")
+            missing = detect_missing_packages(log)
+            print("LATEX_STATUS: compile-failed")
+            if missing:
+                print("MISSING_PACKAGES: %s" % ", ".join(missing))
+                print("HINT: MiKTeX 修复：miktex packages install <包名>，"
+                      "或重跑并加 --enable-installer 联网自动安装；"
+                      "TeX Live 修复：tlmgr install <包名>")
+            warn("xelatex 编译失败。日志尾部：\n" + log[-1200:])
 
 
 if __name__ == "__main__":

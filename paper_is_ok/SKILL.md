@@ -127,6 +127,12 @@ python <skill目录>/scripts/generate_report.py paper_check_work/paper_blocks.js
 - **方式 B（无 LaTeX 环境或用户只提供 PDF/要求 Word）**：加 `--docx`，交付 `查重报告\查重报告.docx` + `查重报告\查重报告.pdf`（脚本依序经 MS Word COM → WPS COM → LibreOffice 自动转换；三者都不可用时只交付 docx，并告知用户"用 Word/WPS 打开后另存为 PDF"）；
 - 注意：xelatex 对中文路径的命令行解析可能失败，此时把 tex 复制到纯英文路径编译再把 PDF 复制回 `查重报告\`。
 
+**LaTeX 环境不完整时的交互规则（必须先询问用户，不得静默切换）**：
+
+- 脚本输出 `LATEX_STATUS: missing-xelatex`（无 LaTeX）或 `LATEX_STATUS: compile-failed`（编译失败，可能附 `MISSING_PACKAGES: 缺失宏包列表`）时，**向用户询问**："您的 LaTeX 环境不完整（缺少：xx 宏包 / 未安装 TeX 发行版），是否愿意补全环境并安装缺失宏包？"
+- **用户愿意** → 引导修复：MiKTeX 执行 `miktex packages install <包名>`，或重跑命令时加 `--enable-installer` 允许联网自动安装；TeX Live 执行 `tlmgr install <包名>`。装好后重新 `--compile`，继续方式 A；若修复后仍失败，再次询问（重试 / 转 Word）。
+- **用户不愿意** → 转方式 B：加 `--docx` 生成 Word 版并转 PDF，交付 `查重报告\查重报告.docx + 查重报告.pdf`，不再交付编译失败的 tex。
+
 报告内容要求（脚本已内置）：
 
 - 结果摘要页：总查重率、公式、统计表、比对覆盖率；
