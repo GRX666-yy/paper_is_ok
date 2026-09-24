@@ -301,7 +301,7 @@ def build_report(meta_title, blocks, resolved, stats, rate, rate_no_quote,
 
     L = [PREAMBLE]
     L.append(r"\title{论文查重报告}")
-    L.append(r"\author{由 paper-duplication-check 技能生成}")
+    L.append(r"\author{由 paper_is_ok 技能生成}")
     L.append(r"\date{%s}" % esc(today))
     L.append(r"\maketitle")
 
@@ -527,7 +527,7 @@ def build_docx(meta_title, blocks, resolved, stats, rate, rate_no_quote,
         return t
 
     doc.add_heading("论文查重报告", level=0)
-    para("由 paper-duplication-check 技能生成　%s" % today)
+    para("由 paper_is_ok 技能生成　%s" % today)
 
     doc.add_heading("一、查重结果摘要", level=1)
     para("论文题名：%s" % title)

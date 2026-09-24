@@ -1,5 +1,5 @@
 ---
-name: paper-duplication-check
+name: paper_is_ok
 description: |-
   论文查重与重复率分析（paper duplication / similarity check）。当用户上传自己的 .pdf 或 .tex 论文，要求查重、检测重复率、与已发表文献对比相似度时使用。Use when the user asks to check their paper (.pdf/.tex) for textual overlap against published literature from the last 15-20 years. 流程：解析论文 → 基于参考文献与关键词检索近15–20年文献 → 付费文献先询问用户是否已有资源 → 按四级权重规则（无疑似0 / 轻微0.2 / 中度0.3 / 严重0.5）逐句对比 → 计算加权查重率 → 生成黄/橙/红高亮标注的查重报告.tex。
 license: LICENSE

@@ -1,0 +1,14 @@
+# 查重工作区（论文抽取文本与中间产物，不入库）
+paper_check_work/
+
+# LaTeX 编译中间文件
+*.aux
+*.log
+*.synctex*
+*.out
+*.bbl
+*.blg
+*.run.xml
+
+# Python
+__pycache__/

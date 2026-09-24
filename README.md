@@ -41,22 +41,22 @@ pip install pypdf python-docx
 
 | Agent | 安装位置 | 说明 |
 |-------|----------|------|
-| Claude Code | `~/.claude/skills/paper-duplication-check/`（全局）或 `项目/.claude/skills/`（项目级） | 原生支持 Agent Skills 规范，放入后自动按需触发 |
+| Claude Code | `~/.claude/skills/paper_is_ok/`（全局）或 `项目/.claude/skills/`（项目级） | 原生支持 Agent Skills 规范，放入后自动按需触发 |
 | Claude.ai 网页版 | 设置 → Capabilities → Skills，将本文件夹打包为 `.zip` 上传 | 上传后所有对话可用 |
-| Trae / Trae CN | 将文件夹放入项目目录（如 `项目根目录/paper-duplication-check/`），并在 Trae 规则文件（`.trae/rules/project_rules.md`）中登记：查重任务请遵循 `paper-duplication-check/SKILL.md` | 放入后对 Trae 说"使用 paper-duplication-check 技能"即可 |
-| Codex（OpenAI） | 将文件夹放入仓库根目录，并在 `AGENTS.md` 中写明：`论文查重任务请阅读并严格遵循 paper-duplication-check/SKILL.md 执行` | Codex 无独立技能目录，通过 AGENTS.md 引用生效 |
+| Trae / Trae CN | 将文件夹放入项目目录（如 `项目根目录/paper_is_ok/`），并在 Trae 规则文件（`.trae/rules/project_rules.md`）中登记：查重任务请遵循 `paper_is_ok/SKILL.md` | 放入后对 Trae 说"使用 paper_is_ok 技能"即可 |
+| Codex（OpenAI） | 将文件夹放入仓库根目录，并在 `AGENTS.md` 中写明：`论文查重任务请阅读并严格遵循 paper_is_ok/SKILL.md 执行` | Codex 无独立技能目录，通过 AGENTS.md 引用生效 |
 | WorkBuddy | 将文件夹放入工作区；在其技能/扩展设置中登记路径，或在系统提示/规则中写明 SKILL.md 的相对路径 | 若所用版本尚无技能目录机制，走下方通用方法 |
-| ZCOD | 将文件夹放入工作区或其技能目录，并在规则配置或首条对话消息中指明 `paper-duplication-check/SKILL.md` 路径 | 同上，通用方法始终可用 |
+| ZCOD | 将文件夹放入工作区或其技能目录，并在规则配置或首条对话消息中指明 `paper_is_ok/SKILL.md` 路径 | 同上，通用方法始终可用 |
 | 其他遵循 Agent Skills 规范的 agent | 参照其文档的 skills 目录 | 文件夹名需与 SKILL.md 中的 `name` 一致 |
 
 ### 方式二：通用方法（任何能读取本地文件的 agent）
 
 即使 agent 没有技能机制，也可以手动驱动：
 
-1. 把 `paper-duplication-check/` 放入项目目录或 agent 可访问的任意位置；
+1. 把 `paper_is_ok/` 放入项目目录或 agent 可访问的任意位置；
 2. 在对话（或系统提示/规则文件）中告诉 agent：
 
-   > 请阅读 paper-duplication-check/SKILL.md，并严格按照其中的七阶段流程执行论文查重；判定标准见 references/rubric.md，数据格式见 references/data-formats.md，检索平台见 references/search-sources.md，脚本位于 scripts/。
+   > 请阅读 paper_is_ok/SKILL.md，并严格按照其中的七阶段流程执行论文查重；判定标准见 references/rubric.md，数据格式见 references/data-formats.md，检索平台见 references/search-sources.md，脚本位于 scripts/。
 
 3. agent 即按流程工作并最终交付 `查重报告.tex`。
 
@@ -66,7 +66,7 @@ pip install pypdf python-docx
 
 对 agent 说：
 
-> 请用 paper-duplication-check 技能帮我查重这篇论文：D:\papers\my_paper.tex
+> 请用 paper_is_ok 技能帮我查重这篇论文：D:\papers\my_paper.tex
 
 > 用查重技能检查 paper.pdf 的重复率
 
@@ -78,7 +78,7 @@ agent 会按流程询问必要信息（付费文献资源等）并最终交付 `
 paper_is_ok/                        # 本仓库
 ├── README.md                       # 本说明文件
 ├── LICENSE                         # 非商业自定义许可（基于 MIT 修改）
-└── paper-duplication-check/        # 技能本体（安装时复制这个文件夹）
+└── paper_is_ok/        # 技能本体（安装时复制这个文件夹）
     ├── SKILL.md                    # 技能主文件（frontmatter + 七阶段工作流）
     ├── LICENSE                     # 随技能分发的许可副本
     ├── references/
