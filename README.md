@@ -1,4 +1,4 @@
-# paper-duplication-check
+# paper-is-ok
 
 一个遵循 [Agent Skills 规范](https://agentskills.io)（SKILL.md）的**论文查重技能**：驱动 AI agent 对你的论文（.pdf / .tex）执行规范、可复现、可量化的查重流程，并生成带颜色标注的 LaTeX 查重报告。
 
