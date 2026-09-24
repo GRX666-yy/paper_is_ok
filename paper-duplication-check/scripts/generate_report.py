@@ -423,6 +423,213 @@ def build_report(meta_title, blocks, resolved, stats, rate, rate_no_quote,
     return "\n".join(L)
 
 
+def docx_to_pdf(docx_path):
+    """把 docx 转为 PDF。依序尝试 MS Word COM → WPS COM (KWps) → LibreOffice。
+    成功返回引擎名，全部失败返回 None。"""
+    docx = str(Path(docx_path).resolve())
+    pdf = str(Path(docx_path).with_suffix(".pdf").resolve())
+
+    def _com_escape(s):
+        return s.replace("'", "''")
+
+    for progid, name in [("Word.Application", "word"), ("KWps.Application", "wps")]:
+        ps = (
+            "try { $w = New-Object -ComObject %s } catch { exit 3 }; "
+            "$w.Visible = $false; "
+            "$d = $w.Documents.Open('%s'); "
+            "$d.SaveAs([ref]'%s', [ref]17); "
+            "$d.Close(); $w.Quit(); Write-Output CONVERTED"
+            % (progid, _com_escape(docx), _com_escape(pdf)))
+        try:
+            rc = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", ps],
+                capture_output=True, text=True, timeout=300)
+        except Exception:
+            continue
+        if rc.returncode == 0 and Path(pdf).exists():
+            return name
+    soffice = shutil.which("soffice")
+    if soffice is None:
+        for cand in [r"C:\Program Files\LibreOffice\program\soffice.exe",
+                     r"C:\Program Files (x86)\LibreOffice\program\soffice.exe"]:
+            if Path(cand).exists():
+                soffice = cand
+                break
+    if soffice:
+        try:
+            rc = subprocess.run(
+                [soffice, "--headless", "--convert-to", "pdf",
+                 "--outdir", str(Path(docx_path).resolve().parent), docx],
+                capture_output=True, text=True, timeout=300)
+        except Exception:
+            rc = None
+        if rc is not None and Path(pdf).exists():
+            return "libreoffice"
+    return None
+
+
+def build_docx(meta_title, blocks, resolved, stats, rate, rate_no_quote,
+               quote_rate, total_chars, skipped, coverage, paper, excluded_n,
+               out_path):
+    """生成与 tex 版同构的 Word 查重报告（.docx）。"""
+    try:
+        from docx import Document
+        from docx.shared import Pt, RGBColor
+        from docx.oxml.ns import qn
+        from docx.oxml import OxmlElement
+    except ImportError:
+        print("ERROR: 缺少依赖 python-docx，请先执行: pip install python-docx",
+              file=sys.stderr)
+        sys.exit(1)
+
+    HEX = {"minor": "FFF478", "moderate": "FFBE78", "severe": "FF7878"}
+    today = datetime.date.today().isoformat()
+    title = paper.get("title") or meta_title or "用户论文"
+
+    doc = Document()
+    normal = doc.styles["Normal"]
+    normal.font.name = "Calibri"
+    normal.font.size = Pt(11)
+    normal._element.get_or_add_rPr()
+    rfonts = normal._element.rPr.get_or_add_rFonts()
+    rfonts.set(qn("w:eastAsia"), "宋体")
+
+    def shade(run, fill):
+        rPr = run._element.get_or_add_rPr()
+        shd = OxmlElement("w:shd")
+        shd.set(qn("w:val"), "clear")
+        shd.set(qn("w:color"), "auto")
+        shd.set(qn("w:fill"), fill)
+        rPr.append(shd)
+
+    def para(text="", bold=False, size=None):
+        p = doc.add_paragraph()
+        r = p.add_run(text)
+        r.bold = bold
+        if size:
+            r.font.size = Pt(size)
+        return p
+
+    def table(headers, rows):
+        t = doc.add_table(rows=1 + len(rows), cols=len(headers))
+        try:
+            t.style = "Table Grid"
+        except Exception:
+            pass
+        for j, h in enumerate(headers):
+            cell = t.rows[0].cells[j]
+            r = cell.paragraphs[0].add_run(h)
+            r.bold = True
+        for i, row in enumerate(rows, 1):
+            for j, v in enumerate(row):
+                t.rows[i].cells[j].paragraphs[0].add_run(str(v))
+        doc.add_paragraph()
+        return t
+
+    doc.add_heading("论文查重报告", level=0)
+    para("由 paper-duplication-check 技能生成　%s" % today)
+
+    doc.add_heading("一、查重结果摘要", level=1)
+    para("论文题名：%s" % title)
+    para("检测总字符数：%d（正文口径，已去除目录、参考文献、致谢、附录等"
+         "不参与查重的章节 %d 块）" % (total_chars, excluded_n))
+    para("疑似标注总数：%d" % len(resolved))
+    if coverage.get("sources_total") is not None:
+        cov = "比对覆盖率：%s / %s 篇" % (coverage.get("sources_fulltext", "?"),
+                                         coverage.get("sources_total", "?"))
+        if coverage.get("note"):
+            cov += "（%s）" % coverage["note"]
+        para(cov)
+    p = doc.add_paragraph()
+    r = p.add_run("总查重率（不计规范引用）：%.2f%%" % rate_no_quote)
+    r.bold = True
+    r.font.size = Pt(14)
+    para("含规范引用的总复制比：%.2f%%；引用率：%.2f%%" % (rate, quote_rate))
+    para("计算公式：查重率 = Σ(片段字符数 × 权重) ÷ 检测总字符数 × 100")
+    para("结果说明：本查重率仅基于本次可获取并已比对的文献子集；付费跳过的文献未参与"
+         "比对，实际重复率只可能更高。知网实际连续匹配阈值约为 13–15 字符，严于本报告"
+         "的严重疑似阈值（30 字符），故本报告结果整体偏低。仅供参考，不等同于知网/"
+         "iThenticate 等官方查重报告。")
+
+    doc.add_heading("二、等级统计", level=1)
+    table(["等级", "处数", "涉及字符数", "权重", "加权字符数", "贡献率"],
+          [[LEVEL_NAMES[lv], stats[lv]["count"], stats[lv]["chars"],
+            WEIGHTS[lv], round(stats[lv]["weighted"], 1),
+            "%.2f%%" % stats[lv]["contrib"]] for lv in LEVEL_ORDER])
+
+    doc.add_heading("三、疑似明细表", level=1)
+    rows = []
+    for r_ in resolved:
+        b = r_["block"]
+        seg_text = b["text"][r_["start"]:r_["end"]]
+        src = r_["source"]
+        src_cell = "%s (%s)" % (src.get("title", "（未提供题名）"),
+                                ", ".join(x for x in [
+                                    src.get("authors", ""),
+                                    str(src.get("year", "")),
+                                    src.get("venue", "")] if x))
+        if src.get("url"):
+            src_cell += " %s" % src["url"]
+        rows.append([r_["mark"], LEVEL_NAMES[r_["level"]]
+                     + ("（规范引用）" if r_["quote"] else ""),
+                     "%s（%s）" % (b["id"], b["section"]),
+                     truncate(seg_text, EXCERPT_SHOW),
+                     src_cell + " 对应用原文：" + truncate(r_["matched"], MATCH_SHOW)
+                     + " 判定：" + truncate(r_["reason"], 90),
+                     "%.3f%%" % (count_chars(seg_text) * WEIGHTS[r_["level"]]
+                                 / total_chars * 100)])
+    if rows:
+        table(["编号", "等级", "位置", "论文片段", "来源文献与判定依据", "贡献"], rows)
+    else:
+        para("未检出任何疑似片段。")
+
+    doc.add_heading("四、未比对文献清单", level=1)
+    if skipped:
+        for s in skipped:
+            para("• %s——%s" % (s.get("title", "（未提供题名）"),
+                                s.get("reason", "")))
+    else:
+        para("无（本次应比对文献均已参与比对）。")
+
+    doc.add_heading("五、正文高亮重现", level=1)
+    para("图例：轻微疑似（黄）、中度疑似（橙）、严重疑似（红）；编号 [n] 对应疑似明细表。")
+    by_block = {}
+    for r_ in resolved:
+        by_block.setdefault(r_["block"]["id"], []).append(r_)
+    prev_sec = None
+    for b in blocks:
+        if b["section"] != prev_sec:
+            doc.add_heading(b["section"], level=2)
+            prev_sec = b["section"]
+        p = doc.add_paragraph()
+        pos = 0
+        for r_ in sorted(by_block.get(b["id"], []), key=lambda x: x["start"]):
+            if r_["start"] > pos:
+                p.add_run(b["text"][pos:r_["start"]])
+            fill = HEX[r_["level"]]
+            run = p.add_run(b["text"][r_["start"]:r_["end"]])
+            shade(run, fill)
+            mk = p.add_run("[%d]" % r_["mark"])
+            mk.font.superscript = True
+            mk.bold = True
+            mk.font.color.rgb = RGBColor(0xC0, 0x00, 0x00)
+            pos = r_["end"]
+        if pos < len(b["text"]):
+            p.add_run(b["text"][pos:])
+
+    doc.add_heading("六、判定标准说明", level=1)
+    para("查重率公式：查重率 = Σ(片段字符数 × 权重) ÷ 检测总字符数 × 100，其中字符数为"
+         "非空白字符（含标点），疑似片段字符数按其在正文中覆盖的范围统计。")
+    table(["等级（颜色）", "权重", "判定要点"],
+          [[n, w, d] for n, w, d in RUBRIC_RECAP])
+    para("生成时间：%s。比对范围为近 15–20 年文献；目录、参考文献列表、致谢、附录、"
+         "声明、图表标题与公式不参与比对，亦不计入检测总字符数。降重方法参见随附的"
+         "降重指南。" % today)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    doc.save(str(out_path))
+
+
 # ---------------------------------------------------------------- 主流程
 
 def main():
@@ -432,6 +639,9 @@ def main():
     ap.add_argument("-o", "--output", default="查重报告.tex")
     ap.add_argument("--compile", action="store_true",
                     help="若本机有 xelatex 则编译为 PDF")
+    ap.add_argument("--docx", action="store_true",
+                    help="同时输出 Word 版报告(.docx)并自动转换为 PDF"
+                         "（本机无 LaTeX 环境时使用）")
     args = ap.parse_args()
 
     blocks_data = json.loads(Path(args.blocks_json).read_text(
@@ -475,6 +685,19 @@ def main():
                  stats[lv]["contrib"]))
     print("  规范引用: %d 字符（不计入查重率，引用率 %.2f%%）"
           % (quote_chars, quote_rate))
+
+    if args.docx:
+        docx_path = out_path.with_suffix(".docx")
+        build_docx(blocks_data.get("title"), blocks, resolved, stats, rate,
+                   rate_no_quote, quote_rate, total_chars, skipped,
+                   coverage, paper, len(excluded), docx_path)
+        print("OK docx=%s" % docx_path)
+        engine = docx_to_pdf(docx_path)
+        if engine:
+            print("OK pdf=%s (via %s)" % (docx_path.with_suffix(".pdf"), engine))
+        else:
+            warn("未能自动转换 PDF（本机未检测到 Word/WPS/LibreOffice），"
+                 "请用 Word 或 WPS 打开 %s 后另存为 PDF" % docx_path.name)
 
     if args.compile:
         if shutil.which("xelatex") is None:

@@ -7,12 +7,12 @@ license: LICENSE
 
 # 论文查重技能（Paper Duplication Check）
 
-驱动 agent 对用户的论文（.pdf / .tex）执行一套规范、可复现、可量化的查重流程：通读论文 → 检索近 15–20 年相关文献 → 逐句比对 → 计算加权查重率 → 生成带颜色标注的 `查重报告.tex`。
+驱动 agent 对用户的论文（.pdf / .tex）执行一套规范、可复现、可量化的查重流程：通读论文 → 检索近 15–20 年相关文献 → 逐句比对 → 计算加权查重率 → 生成带颜色标注的查重报告（有 LaTeX 环境:tex+pdf；无 LaTeX 环境:docx+pdf），统一放入 `查重报告\` 文件夹交付。
 
 ## 环境依赖
 
-- Python ≥ 3.8，依赖 `pypdf`（PDF 解析用，`pip install pypdf`）
-- 可选：TeX 发行版（需含 `xelatex` 与 `ctex` 宏包），用于把报告编译成 PDF
+- Python ≥ 3.8，依赖 `pypdf`（PDF 解析用）与 `python-docx`（Word 报告输出用）：`pip install pypdf python-docx`
+- PDF 报告二选一：①本机有 TeX（`xelatex` + `ctex` 宏包）→ 编译 tex；②无 LaTeX 环境 → 生成 Word 版（.docx）并经本机 Word/WPS/LibreOffice 自动转为 PDF
 - 联网检索能力：使用当前环境中可用的网页搜索 / 网页读取工具（如 WebSearch / WebFetch），配合多平台学术检索（平台清单见 `references/search-sources.md`：arXiv、Semantic Scholar、OpenAlex、Crossref、ACL Anthology、CORE、Unpaywall、百度学术、IEEE/Springer/CNKI 等 A/B/C 三类）
 - 本技能目录下的 `scripts/` 与 `references/` 必须随技能一起存在
 
@@ -120,6 +120,12 @@ python <skill目录>/scripts/generate_report.py paper_check_work/paper_blocks.js
 （支持多个标注文件依次传入自动合并；`--compile` 可选，会在本机有 xelatex 时编译出 `查重报告.pdf`。）
 
 脚本自动完成：片段字符统计、加权查重率计算、生成报告。**查重率以脚本输出为准，不要手工心算。**
+
+**交付方式（二选一，统一放入与论文同目录的 `查重报告\` 文件夹，文件名统一为 `查重报告.*`）**：
+
+- **方式 A（本机有 LaTeX）**：`--compile` 编译 tex，交付 `查重报告\查重报告.tex` + `查重报告\查重报告.pdf`；
+- **方式 B（无 LaTeX 环境或用户只提供 PDF/要求 Word）**：加 `--docx`，交付 `查重报告\查重报告.docx` + `查重报告\查重报告.pdf`（脚本依序经 MS Word COM → WPS COM → LibreOffice 自动转换；三者都不可用时只交付 docx，并告知用户"用 Word/WPS 打开后另存为 PDF"）；
+- 注意：xelatex 对中文路径的命令行解析可能失败，此时把 tex 复制到纯英文路径编译再把 PDF 复制回 `查重报告\`。
 
 报告内容要求（脚本已内置）：
 

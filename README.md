@@ -12,7 +12,7 @@ An [Agent Skills](https://agentskills.io)-compatible skill that guides an AI age
 4. **付费墙处理** — 遇到付费文献会**先询问**你是否已有资源；无资源且占比小则跳过并记录，占比大则由你决定是否继续；
 5. **逐句比对** — 按四级量化 rubric 判级（见下表）；目录、参考文献、致谢、附录等不计入检测总字符数（对照知网口径），规范引用单独计"引用率"；
 6. **计算查重率** — `scripts/generate_report.py` 加权计算；
-7. **生成报告** — 输出 `查重报告.tex`（可用 xelatex 编译为 PDF），全文重现并高亮：轻微=黄、中度=橙、严重=红，无疑似不标记；并随附**降重指南**（基于知网降重原理的 `references/reduce-duplication.md`）。
+7. **生成报告** — 统一放入 `查重报告\` 文件夹：有 LaTeX 环境输出 `查重报告.tex` 并编译为 `查重报告.pdf`；**无 LaTeX 环境（如只上传 PDF 的用户）输出 `查重报告.docx`（Word 版，红/橙/黄底纹高亮）并自动转换为 `查重报告.pdf`**；全文重现并高亮，无疑似不标记，并随附**降重指南**（基于知网降重原理的 `references/reduce-duplication.md`）。
 
 ## 四级判定与权重
 
@@ -29,10 +29,10 @@ An [Agent Skills](https://agentskills.io)-compatible skill that guides an AI age
 
 ## 安装 / Install
 
-**环境要求**：Python ≥ 3.8 与 `pypdf`（PDF 解析用）；可选 TeX 发行版（xelatex + ctex 宏包）用于编译报告 PDF。
+**环境要求**：Python ≥ 3.8，`pypdf`（PDF 解析）与 `python-docx`（Word 报告输出）。报告 PDF 二选一：本机有 TeX（xelatex + ctex）→ LaTeX 版；**无 LaTeX 环境 → Word 版（.docx 自动经本机 Word/WPS/LibreOffice 转为 PDF）**。
 
 ```bash
-pip install pypdf
+pip install pypdf python-docx
 ```
 
 ### 方式一：放入 agent 技能目录
