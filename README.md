@@ -1,8 +1,8 @@
 # paper-is-ok
 
-一个遵循 [Agent Skills 规范](https://agentskills.io)（SKILL.md）的**论文查重技能**：驱动 AI agent 对你的论文（.pdf / .tex）执行规范、可复现、可量化的查重流程，并生成带颜色标注的 LaTeX 查重报告。
+**中文** | [English](README.en.md)
 
-An [Agent Skills](https://agentskills.io)-compatible skill that guides an AI agent to check your paper (.pdf/.tex) for textual overlap against published literature from the last 15–20 years, compute a weighted duplication rate, and generate a color-highlighted LaTeX report (`查重报告.tex`).
+一个遵循 [Agent Skills 规范](https://agentskills.io)（SKILL.md）的**论文查重技能**：驱动 AI agent 对你的论文（.pdf / .tex）执行规范、可复现、可量化的查重流程，并生成带颜色标注的查重报告（LaTeX 或 Word，自动转出 PDF）。
 
 ## 工作原理 / How it works
 
@@ -76,7 +76,8 @@ agent 会按流程询问必要信息（付费文献资源等）并最终交付 `
 
 ```
 paper_is_ok/                        # 本仓库
-├── README.md                       # 本说明文件
+├── README.md                       # 中文说明文件
+├── README.en.md                    # 英文说明文件
 ├── LICENSE                         # 非商业自定义许可（基于 MIT 修改）
 └── paper_is_ok/        # 技能本体（安装时复制这个文件夹）
     ├── SKILL.md                    # 技能主文件（frontmatter + 七阶段工作流）
