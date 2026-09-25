@@ -19,9 +19,9 @@ An [Agent Skills](https://agentskills.io)-compatible **paper duplication-check s
 | Level | Weight | Report mark | Criteria |
 |-------|--------|-------------|----------|
 | None | 0 | unmarked | original wording or sufficiently rewritten |
-| Minor | 0.2 | yellow | 8–14 consecutive overlapping characters / highly similar viewpoint / properly formatted direct quote |
-| Moderate | 0.3 | orange | 15–29 consecutive overlapping characters / single-sentence structural copy with rewording |
-| Severe | 0.5 | red | ≥30 consecutive overlapping characters / whole-paragraph structural copy |
+| Minor | 0.2 | yellow | 6–9 consecutive overlapping characters / highly similar viewpoint / properly formatted direct quote |
+| Moderate | 0.3 | orange | 10–17 consecutive overlapping characters / single-sentence structural copy with rewording |
+| Severe | 0.5 | red | ≥18 consecutive overlapping characters / whole-paragraph structural copy |
 
 **Duplication-rate formula**: `Σ(non-whitespace chars of flagged span × weight) ÷ total non-whitespace chars × 100`
 
