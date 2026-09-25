@@ -52,6 +52,29 @@ def count_chars(text):
     return len(re.sub(r"\s+", "", text))
 
 
+# 数学区域（公式以 LaTeX 源码形式存于 blocks 文本中，渲染时原样保留）
+_MATH_ENV_SRC = (r"equation\*?|align\*?|alignat\*?|gather\*?|multline\*?"
+                 r"|eqnarray\*?|split|cases|flalign\*?|math|displaymath")
+MATH_PAT = re.compile(
+    r"(\\begin\{(?P<env>" + _MATH_ENV_SRC + r")\}.*?\\end\{(?P=env)\}"
+    r"|\$\$.*?\$\$"
+    r"|\\\[.*?\\\]"
+    r"|\\\((?:[^\\]|\\.)*?\\\)"
+    r"|\$[^$\n]*?\$)", re.S)
+
+
+def iter_segments(text):
+    """把文本切分为 (是否公式, 片段) 序列；公式片段原样保留。"""
+    pos = 0
+    for m in MATH_PAT.finditer(text):
+        if m.start() > pos:
+            yield False, text[pos:m.start()]
+        yield True, m.group(0)
+        pos = m.end()
+    if pos < len(text):
+        yield False, text[pos:]
+
+
 def norm(text):
     return re.sub(r"\s+", "", text)
 
@@ -219,6 +242,9 @@ def compute_stats(total_chars, resolved):
 PREAMBLE = r"""\documentclass[UTF8,12pt]{ctexart}
 \usepackage[a4paper,margin=2.4cm]{geometry}
 \usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{bm}
+\usepackage{mathtools}
 \usepackage{xcolor}
 \usepackage{longtable}
 \usepackage{booktabs}
@@ -253,22 +279,50 @@ FORMULA_TEX = (r"$\text{查重率}=\dfrac{\sum(\text{片段字符数}\times\text
                r"{\text{检测总字符数}}\times 100$")
 
 
+def render_plain(text):
+    """未标记文本：普通文字转义，公式原样输出。"""
+    return "".join(seg if is_math else esc(seg)
+                   for is_math, seg in iter_segments(text))
+
+
 def render_piece(level, text, mark):
-    body = r"\hspace{0pt}".join(
-        r"\colorbox{%s}{%s}" % (LEVEL_COLORS[level], esc(c))
-        for c in split_chunks(text))
+    """标记片段：文字分片涂色，行内公式随片涂色（原样），
+    display 公式环境独立成行原样输出（不置于 colorbox 内）。"""
+    out = []
+    buf = ""
+
+    def flush():
+        nonlocal buf
+        if buf:
+            out.append(r"\hspace{0pt}".join(
+                r"\colorbox{%s}{%s}" % (LEVEL_COLORS[level], esc(c))
+                for c in split_chunks(buf)))
+            buf = ""
+
+    for is_math, seg in iter_segments(text):
+        if not is_math:
+            buf += seg
+            continue
+        flush()
+        if seg.lstrip().startswith("\\begin"):
+            out.append("\n\n" + seg + "\n\n")
+        else:
+            out.append(r"\colorbox{%s}{%s}" % (LEVEL_COLORS[level], seg))
+    flush()
     if mark is not None:
-        body += r"\flagmark{%s}{%d}" % (LEVEL_COLORS[level], mark)
-    return body
+        out.append(r"\flagmark{%s}{%d}" % (LEVEL_COLORS[level], mark))
+    return "".join(out)
 
 
 def render_fulltext(blocks, resolved):
     by_block = {}
     for r in resolved:
         by_block.setdefault(r["block"]["id"], []).append(r)
-    out = [r"\section*{五、正文高亮重现}", r"\noindent 图例：",
+    out = [r"\section*{五、正文高亮重现}",
+           r"\noindent 图例：",
            r"\flagminor{轻微疑似(黄)} \flagmoderate{中度疑似(橙)} "
-           r"\flagsevere{严重疑似(红)}；编号 [n] 对应疑似明细表。\par\bigskip"]
+           r"\flagsevere{严重疑似(红)}；编号 [n] 对应疑似明细表。数学公式以 "
+           r"LaTeX 源码完整保留并参与比对；display 公式不涂色、原样排版。\par\bigskip"]
     prev_sec = None
     for b in blocks:
         if b["section"] != prev_sec:
@@ -284,7 +338,7 @@ def render_fulltext(blocks, resolved):
         if pos < len(b["text"]):
             parts.append((None, b["text"][pos:], None))
         out.append("".join(
-            esc(t) if lv is None else render_piece(lv, t, mk)
+            render_plain(t) if lv is None else render_piece(lv, t, mk)
             for lv, t, mk in parts))
         out.append("\n\n")
     return "\n".join(out)
@@ -301,7 +355,7 @@ def build_report(meta_title, blocks, resolved, stats, rate, rate_no_quote,
 
     L = [PREAMBLE]
     L.append(r"\title{论文查重报告}")
-    L.append(r"\author{由 paper_is_ok 技能生成}")
+    L.append(r"\author{由 paper\_is\_ok 技能生成}")
     L.append(r"\date{%s}" % esc(today))
     L.append(r"\maketitle")
 
@@ -416,8 +470,10 @@ def build_report(meta_title, blocks, resolved, stats, rate, rate_no_quote,
         L.append(r"%s & %s & %s \\" % (esc(name), w, esc(desc)))
     L.append(r"\bottomrule \end{longtable}")
     L.append(r"\medskip\noindent 生成时间：%s。比对范围为近 15--20 年文献；"
-             r"目录、参考文献列表、致谢、附录、声明、图表标题与公式不参与比对，"
-             r"亦不计入检测总字符数。降重方法参见随附的降重指南。\par"
+             r"目录、参考文献列表、致谢、附录、声明与图表标题不参与比对，"
+             r"亦不计入检测总字符数；公式按其 LaTeX 源码参与比对与字符统计"
+             r"（标准公式且已规范引用的除外，见判定标准 R5）。"
+             r"降重方法参见随附的降重指南。\par"
              % esc(today))
     L.append(r"\end{document}")
     return "\n".join(L)
@@ -592,7 +648,9 @@ def build_docx(meta_title, blocks, resolved, stats, rate, rate_no_quote,
         para("无（本次应比对文献均已参与比对）。")
 
     doc.add_heading("五、正文高亮重现", level=1)
-    para("图例：轻微疑似（黄）、中度疑似（橙）、严重疑似（红）；编号 [n] 对应疑似明细表。")
+    para("图例：轻微疑似（黄）、中度疑似（橙）、严重疑似（红）；编号 [n] 对应疑似明细表。"
+         "数学公式以 LaTeX 源码完整保留并参与比对（Word 版中公式显示为源文本，"
+         "内容可完整核对）。")
     by_block = {}
     for r_ in resolved:
         by_block.setdefault(r_["block"]["id"], []).append(r_)
@@ -623,8 +681,9 @@ def build_docx(meta_title, blocks, resolved, stats, rate, rate_no_quote,
     table(["等级（颜色）", "权重", "判定要点"],
           [[n, w, d] for n, w, d in RUBRIC_RECAP])
     para("生成时间：%s。比对范围为近 15–20 年文献；目录、参考文献列表、致谢、附录、"
-         "声明、图表标题与公式不参与比对，亦不计入检测总字符数。降重方法参见随附的"
-         "降重指南。" % today)
+         "声明与图表标题不参与比对，亦不计入检测总字符数；公式按其 LaTeX 源码参与"
+         "比对与字符统计（标准公式且已规范引用的除外，见判定标准 R5）。"
+         "降重方法参见随附的降重指南。" % today)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     doc.save(str(out_path))

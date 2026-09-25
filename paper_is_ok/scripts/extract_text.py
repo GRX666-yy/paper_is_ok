@@ -24,6 +24,20 @@ from pathlib import Path
 MATH_PH = "［数学式］"
 MIN_BLOCK_CHARS = 6
 
+# 参与查重的数学环境（内容以 LaTeX 源码原样保留）
+MATH_ENVS = [
+    r"equation\*?", r"align\*?", r"alignat\*?", r"gather\*?",
+    r"multline\*?", r"eqnarray\*?", r"split", r"cases",
+    r"flalign\*?", r"math", r"displaymath",
+]
+# 不参与查重的浮动体/环境（整体丢弃）
+DROP_ENVS = [
+    r"figure\*?", r"table\*?", r"tabular\*?", r"longtable",
+    r"verbatim\*?", r"Verbatim", r"lstlisting\*?", r"minted",
+    r"algorithm\*?", r"algorithmic\*?", r"algorithm2e",
+    r"thebibliography",
+]
+
 # ---------------------------------------------------------------- 通用工具
 
 def count_chars(text: str) -> int:
@@ -72,11 +86,35 @@ def drop_environments(s: str) -> str:
         pat = re.compile(
             r"\\begin\{" + env + r"\}.*?\\end\{" + env + r"\}", re.S)
         while True:
-            s2 = pat.sub("\n" + MATH_PH + "\n", s)
+            s2 = pat.sub("\n", s)
             if s2 == s:
                 break
             s = s2
     return s
+
+
+def protect_math(s: str):
+    """把所有数学区域替换为 @@MATHn@@ 令牌，返回 (文本, 数学源码列表)。
+    公式以 LaTeX 源码原样保留，供报告完整渲染与查重比对。"""
+    store = []
+
+    def _protect(m):
+        store.append(m.group(0))
+        return "@@MATH%d@@" % (len(store) - 1)
+
+    for env in MATH_ENVS:
+        s = re.sub(r"\\begin\{(?P<env>" + env + r")\}.*?\\end\{(?P=env)\}",
+                   _protect, s, flags=re.S)
+    s = re.sub(r"\$\$.*?\$\$", _protect, s, flags=re.S)
+    s = re.sub(r"\\\[.*?\\\]", _protect, s, flags=re.S)
+    s = re.sub(r"\$[^$\n]*\$", _protect, s)
+    s = re.sub(r"\\\((.*?)\\\)", _protect, s, flags=re.S)
+    return s, store
+
+
+def restore_math(s: str, store: list) -> str:
+    return re.sub(r"@@MATH(\d+)@@",
+                  lambda m: store[int(m.group(1))], s)
 
 
 def clean_tex(src: str):
@@ -93,6 +131,9 @@ def clean_tex(src: str):
         s = s[m.end():]
     s = re.sub(r"\\(?:end)?\{document\}", "", s)
 
+    # 先保护数学区域（公式以 LaTeX 源码原样保留，参与查重）
+    s, math_store = protect_math(s)
+
     s = drop_environments(s)
     s = re.sub(r"\\begin\{abstract\}", "\n@@H@@摘要\n", s)
     s = re.sub(r"\\end\{abstract\}", "\n", s)
@@ -106,11 +147,6 @@ def clean_tex(src: str):
 
     s = re.sub(r"\\item(?:\[[^\]]*\])?", "\n@@ITEM@@\n", s)
 
-    # 行内数学
-    s = re.sub(r"\$[^$\n]*\$", MATH_PH, s)
-    s = re.sub(r"\\\[.*?\\\]", "\n" + MATH_PH + "\n", s, flags=re.S)
-    s = re.sub(r"\\\((.*?)\\\)", MATH_PH, s, flags=re.S)
-
     # 引用/标签/超链接等无正文价值的命令
     s = re.sub(r"\\(?:url|href)\s*\{[^{}]*\}", "", s)
     s = re.sub(r"\\(?:" + NO_TEXT_CMDS + r")\s*(?:\[[^\]]*\])*\s*\{[^{}]*\}",
@@ -122,6 +158,9 @@ def clean_tex(src: str):
     s = re.sub(r"\\([{}%&#_$])", r"\1", s)
     s = s.replace("~", " ")
     s = s.replace("{", " ").replace("}", " ")
+
+    # 还原数学源码
+    s = restore_math(s, math_store)
     return s, title
 
 
@@ -254,7 +293,7 @@ def main():
         "source_type": source_type,
         "title": title,
         "total_chars": total,
-        "char_count_rule": "非空白字符数（含标点，不含空白）",
+        "char_count_rule": "非空白字符数（含标点；数学公式按其 LaTeX 源码计）",
         "blocks": blocks,
     }
     out_path = Path(args.output)
